@@ -1,0 +1,16 @@
+[package]
+name = "rustpass"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+argon2 = "0.5.3"
+chacha20poly1305 = "0.10.1"
+eframe = "0.34.2"
+egui = "0.33.3"
+egui-file-dialog = "0.13.0"
+env_logger = "0.11.10"
+rand = "0.10.1"
+
+[profile.dev]
+opt-level=1
