@@ -3,8 +3,8 @@
 
 use chacha20poly1305::Key;
 use chacha20poly1305::{
-    aead::{Aead, AeadCore, KeyInit},
     ChaCha20Poly1305, Nonce,
+    aead::{Aead, AeadCore, KeyInit},
 };
 use eframe::egui;
 use egui_file_dialog::FileDialog;
@@ -43,8 +43,18 @@ fn main() -> eframe::Result {
     )
 }
 
+#[derive(Default, PartialEq)]
+enum ViewState {
+    #[default]
+    StartMenu,
+    UnlockDatabase,
+    DatabaseStartMenu,
+    NewEntry,
+}
+
 #[derive(Default)]
 struct MyApp {
+    viewstate: ViewState,
     show_new_db_viewport: bool,
     db_selected: bool,
     open_db_selected: bool,
@@ -58,11 +68,14 @@ struct MyApp {
     file_path: Option<PathBuf>,
     pending_create: bool,
     pending_open: bool,
+    unlocked_db_page: i32,
+    unlocked_db: bool,
 }
 
 impl MyApp {
     pub fn new(_cc: &eframe::CreationContext) -> Self {
         Self {
+            viewstate: ViewState::StartMenu,
             show_new_db_viewport: false,
             db_selected: false,
             open_db_selected: false,
@@ -76,6 +89,8 @@ impl MyApp {
             file_path: None,
             pending_create: false,
             pending_open: false,
+            unlocked_db_page: 0,
+            unlocked_db: false,
         }
     }
 }
@@ -83,7 +98,16 @@ impl MyApp {
 impl eframe::App for MyApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show_inside(ui, |ui| {
-            self.start_menu(ui);
+            self.header(ui);
+            if self.viewstate == ViewState::StartMenu {
+                self.start_menu(ui);
+            } else if self.viewstate == ViewState::UnlockDatabase {
+                self.unlock_db(ui);
+            } else if self.viewstate == ViewState::DatabaseStartMenu {
+                self.unlocked_db(ui);
+            } else if self.viewstate == ViewState::NewEntry {
+                self.new_entry(ui);
+            }
 
             self.show_new_db_viewport_ui(ui); //automatically handles itself based on state
 
@@ -98,7 +122,10 @@ impl eframe::App for MyApp {
                 }
             } else if self.pending_open {
                 if let Some(path) = &self.file_path {
+                    self.password = String::new();
+                    self.unlocked_db = false;
                     self.db_selected = true;
+                    self.viewstate = ViewState::UnlockDatabase;
                     self.pending_open = false;
                 }
             }

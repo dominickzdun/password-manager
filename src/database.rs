@@ -1,13 +1,14 @@
 use crate::PathBuf;
+use argon2::Params;
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 use chacha20poly1305::Key;
 use std::fs::File;
-use std::io::prelude::*;
 use std::io::BufReader;
 use std::io::Write;
+use std::io::prelude::*;
 
 pub fn password_to_key() {}
 
@@ -21,7 +22,15 @@ pub fn create_db(name: &String, password: &String, file_path: &PathBuf) -> Key {
 
     let mut key_bytes = [0u8; 32];
 
-    let argon2 = Argon2::default();
+    let params = Params::new(
+        16000, // Memory cost in KiB
+        160,   // Iterations
+        1,     // Parallelism
+        None,
+    )
+    .expect("Invalid params");
+
+    let argon2 = Argon2::new(argon2::Algorithm::Argon2d, argon2::Version::V0x13, params);
     let password_hash = argon2
         .hash_password(password.as_bytes(), &salt)
         .expect("hash making error")
@@ -39,7 +48,7 @@ pub fn create_db(name: &String, password: &String, file_path: &PathBuf) -> Key {
 pub fn unlock_db(
     password: &String,
     file_path: &Option<PathBuf>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<Key, Box<dyn std::error::Error>> {
     let path = match file_path.as_ref() {
         Some(p) => p,
         None => return Err("No file path selected".into()),
@@ -63,5 +72,17 @@ pub fn unlock_db(
         Err(_) => return Err("Invalid password".into()),
     }
 
-    Ok(())
+    let salt = parsed_hash.salt.ok_or("No salt found in hash")?;
+    let salt_bytes = salt.as_str().as_bytes();
+
+    let mut key_bytes = [0u8; 32];
+    argon2
+        .hash_password_into(password.as_bytes(), salt_bytes, &mut key_bytes)
+        .map_err(|e| e.to_string())?;
+
+    Ok(Key::from(key_bytes))
 }
+
+pub fn load_db(key: Key) {}
+
+pub fn get_key() {}
