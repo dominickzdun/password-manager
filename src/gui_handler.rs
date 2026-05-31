@@ -1,6 +1,7 @@
+use crate::database;
 use crate::MyApp;
 use crate::ViewState;
-use crate::database;
+use crate::ViewState::NewEntry;
 use eframe::egui;
 use rfd::FileDialog;
 
@@ -26,8 +27,8 @@ impl MyApp {
             }
         });
         ui.menu_button("Entries", |ui| {
-            if ui.button("New Entry").clicked() {
-                self.show_new_db_viewport = true;
+            if ui.button("New Entry").clicked() && self.unlocked_db {
+                self.viewstate = NewEntry;
                 ui.close();
             }
         });
@@ -130,6 +131,7 @@ impl MyApp {
                     self.unlocked_db = true;
                     self.viewstate = ViewState::DatabaseStartMenu;
                     println!("unlocked");
+                    self.decrypt_all_entries();
                 }
                 Err(e) => println!("{}", e),
             }
@@ -140,6 +142,14 @@ impl MyApp {
         if (self.unlocked_db_page == 0) {}
     }
     pub fn new_entry(&mut self, ui: &mut egui::Ui) {
-        
+        ui.label("Title");
+        ui.text_edit_singleline(&mut self.new_entry.title);
+        ui.label("Password");
+        ui.text_edit_singleline(&mut self.new_entry.password);
+
+        if ui.button("Create").clicked() {
+            //cipher text, write to file to save cipher, nonce,
+            self.create_new_entry();
+        }
     }
 }

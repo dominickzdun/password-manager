@@ -3,12 +3,14 @@
 
 use chacha20poly1305::Key;
 use chacha20poly1305::{
-    ChaCha20Poly1305, Nonce,
     aead::{Aead, AeadCore, KeyInit},
+    ChaCha20Poly1305, Nonce,
 };
 use eframe::egui;
 use egui_file_dialog::FileDialog;
 use std::path::PathBuf;
+
+use crate::database::Entry;
 
 mod database;
 mod gui_handler;
@@ -21,21 +23,6 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
 
-    // let cipher = ChaCha20Poly1305::new(&key);
-    // let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng); // 96-bits; create new for every cipher text
-    // let ciphertext = cipher
-    //     .encrypt(&nonce, b"plaintext message".as_ref())
-    //     .expect("Encryption failed");
-
-    // let plaintext = cipher
-    //     .decrypt(&nonce, ciphertext.as_ref())
-    //     .expect("Decryption failed");
-
-    // println!(
-    //     "Decrypted plaintext: {}",
-    //     String::from_utf8_lossy(&plaintext)
-    // );
-    // assert_eq!(&plaintext, b"plaintext message");
     eframe::run_native(
         "Rustpass",
         options,
@@ -70,6 +57,7 @@ struct MyApp {
     pending_open: bool,
     unlocked_db_page: i32,
     unlocked_db: bool,
+    new_entry: database::Entry,
 }
 
 impl MyApp {
@@ -91,6 +79,7 @@ impl MyApp {
             pending_open: false,
             unlocked_db_page: 0,
             unlocked_db: false,
+            new_entry: Entry::new(String::new(), String::new()),
         }
     }
 }
