@@ -6,7 +6,8 @@ use argon2::{
     Argon2, Params,
 };
 use chacha20poly1305::{aead::AeadMut, AeadCore, Key, KeyInit};
-use secrecy::{ExposeSecret, SecretString};
+
+use crate::database;
 use std::fs::{File, OpenOptions};
 use std::io::{prelude::*, BufReader, Write};
 
@@ -22,8 +23,6 @@ impl Entry {
     }
 }
 
-pub fn password_to_key() {}
-
 pub fn create_db(name: &String, password: &String, file_path: &PathBuf) -> Key {
     //let full_path = format!("{}/{}.enc", file_path_string, name);
     //let path = file_path.as_ref().expect("no file path provided");
@@ -34,6 +33,7 @@ pub fn create_db(name: &String, password: &String, file_path: &PathBuf) -> Key {
 
     let mut key_bytes = [0u8; 32];
 
+    //CHANGE SO USER CAN PICK
     let params = Params::new(
         16000, // Memory cost in KiB
         160,   // Iterations
@@ -159,11 +159,10 @@ impl MyApp {
 
                         if parts.len() == 3 {
                             let title_hex = parts[0];
-                            //let password_hex = parts[1];
+                            let password_hex = parts[1];
                             let nonce_hex = parts[2];
 
-                            let cipher_title = hex::decode(title_hex).unwrap();
-
+                            let title_bytes = hex::decode(title_hex).unwrap();
                             let nonce_bytes = hex::decode(nonce_hex).unwrap();
 
                             let nonce_array: &[u8; 12] = nonce_bytes
@@ -174,10 +173,16 @@ impl MyApp {
 
                             // only decrypt title, decrypt password if user really wants to see it
                             let plaintext_title = cipher
-                                .decrypt(nonce, cipher_title.as_ref())
+                                .decrypt(nonce, title_bytes.as_ref())
                                 .expect("Decryption failed");
 
-                            println!("{}", String::from_utf8_lossy(&plaintext_title));
+                            let title_string =
+                                String::from_utf8_lossy(&plaintext_title).into_owned();
+
+                            println!("{}", title_string);
+                            let loaded_entry =
+                                database::Entry::new(title_string, password_hex.to_string());
+                            self.loaded_entries.push(loaded_entry);
                         }
                     }
                 }
@@ -190,4 +195,3 @@ impl MyApp {
         }
     }
 }
-pub fn load_db(key: Key) {}

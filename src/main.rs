@@ -44,7 +44,6 @@ struct MyApp {
     viewstate: ViewState,
     show_new_db_viewport: bool,
     db_selected: bool,
-    open_db_selected: bool,
     new_db_name: String,
     new_db_page: i32,
     new_db_password: String,
@@ -55,9 +54,9 @@ struct MyApp {
     file_path: Option<PathBuf>,
     pending_create: bool,
     pending_open: bool,
-    unlocked_db_page: i32,
     unlocked_db: bool,
     new_entry: database::Entry,
+    loaded_entries: Vec<database::Entry>,
 }
 
 impl MyApp {
@@ -66,7 +65,6 @@ impl MyApp {
             viewstate: ViewState::StartMenu,
             show_new_db_viewport: false,
             db_selected: false,
-            open_db_selected: false,
             new_db_name: String::new(),
             new_db_page: 0,
             new_db_password: String::new(),
@@ -77,9 +75,9 @@ impl MyApp {
             file_path: None,
             pending_create: false,
             pending_open: false,
-            unlocked_db_page: 0,
             unlocked_db: false,
             new_entry: Entry::new(String::new(), String::new()),
+            loaded_entries: Vec::new(),
         }
     }
 }

@@ -3,6 +3,8 @@ use crate::MyApp;
 use crate::ViewState;
 use crate::ViewState::NewEntry;
 use eframe::egui;
+use egui::{Frame, Label, RichText, Sense, UiBuilder, Widget as _};
+
 use rfd::FileDialog;
 
 impl MyApp {
@@ -139,7 +141,9 @@ impl MyApp {
     }
 
     pub fn unlocked_db(&mut self, ui: &mut egui::Ui) {
-        if (self.unlocked_db_page == 0) {}
+        for entry in 0..self.loaded_entries.len() {
+            self.load_entry(ui, &self.loaded_entries[entry].title);
+        }
     }
     pub fn new_entry(&mut self, ui: &mut egui::Ui) {
         ui.label("Title");
@@ -150,6 +154,60 @@ impl MyApp {
         if ui.button("Create").clicked() {
             //cipher text, write to file to save cipher, nonce,
             self.create_new_entry();
+            self.viewstate = ViewState::DatabaseStartMenu;
+        }
+        if ui.button("Cancel").clicked() {
+            self.viewstate = ViewState::DatabaseStartMenu;
+        }
+    }
+
+    pub fn load_entry(&self, ui: &mut egui::Ui, title: &String) {
+        let response = ui
+            .scope_builder(
+                UiBuilder::new()
+                    .id_salt("interactive_container")
+                    .sense(Sense::click()),
+                |ui| {
+                    let response = ui.response();
+                    let visuals = ui.style().interact(&response);
+                    let text_color = visuals.text_color();
+
+                    Frame::canvas(ui.style())
+                        .fill(visuals.bg_fill.gamma_multiply(0.3))
+                        .stroke(visuals.bg_stroke)
+                        .inner_margin(ui.spacing().menu_margin)
+                        .show(ui, |ui| {
+                            ui.set_width(ui.available_width());
+
+                            ui.horizontal(|ui| {
+                                ui.add_space(32.0);
+
+                                Label::new(
+                                    RichText::new(format!("{}", title))
+                                        .color(text_color)
+                                        .size(16.0),
+                                )
+                                .selectable(false)
+                                .ui(ui);
+
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        ui.add_space(8.0);
+
+                                        if ui.button("More").clicked() {}
+
+                                        if ui.button("Copy").clicked() {}
+                                    },
+                                );
+                            });
+                        });
+                },
+            )
+            .response;
+
+        if response.clicked() {
+            println!("big");
         }
     }
 }

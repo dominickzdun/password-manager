@@ -13,7 +13,6 @@ env_logger = "0.11.10"
 hex = "0.4.3"
 rand = "0.10.1"
 rfd = "0.17.2"
-secrecy = "0.10.3"
 
 [profile.dev]
 opt-level=1
