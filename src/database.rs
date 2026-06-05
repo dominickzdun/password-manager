@@ -11,12 +11,19 @@ use crate::database;
 use std::fs::{File, OpenOptions};
 use std::io::{prelude::*, BufReader, Write};
 
-#[derive(Default)]
+use serde::{Deserialize, Serialize};
+
+pub struct EncryptedEntry {
+    pub title: String,
+    pub encrypted_json: Vec<u8>,
+    pub nonce: [u8; 12],
+}
+
+#[derive(Default, Serialize, Deserialize, Clone)]
 pub struct Entry {
     pub title: String,
     pub password: String,
 }
-
 impl Entry {
     pub fn new(title: String, password: String) -> Self {
         Entry { title, password }
@@ -100,29 +107,26 @@ pub fn unlock_db(
     Ok(Key::from(key_bytes))
 }
 impl MyApp {
+    // MAKE TEMP FILE FIRST, CONFIRM ITS CORRECT, THEN OVERWRITE
     pub fn create_new_entry(&mut self) {
         if let Some(ref path) = self.file_path {
             match OpenOptions::new().write(true).append(true).open(path) {
                 Ok(mut file) => {
+                    let payload_bytes =
+                        serde_json::to_vec(&self.new_entry).expect("Failed to serialize entry");
+
                     let mut cipher = ChaCha20Poly1305::new(&self.key);
                     let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng); // 96-bits; create new for every cipher text
-                    let cipher_title = cipher
-                        .encrypt(&nonce, self.new_entry.title.as_bytes())
-                        .expect("Encryption failed");
-                    let cipher_password = cipher
-                        .encrypt(&nonce, self.new_entry.password.as_bytes())
+                    let cipher_payload = cipher
+                        .encrypt(&nonce, payload_bytes.as_ref())
                         .expect("Encryption failed");
 
-                    let title_hex = hex::encode(cipher_title);
-                    let password_hex = hex::encode(cipher_password);
+                    let payload_hex = hex::encode(cipher_payload);
                     let nonce_hex = hex::encode(nonce);
 
-                    if let Err(e) = writeln!(file, "{}:{}:{}", title_hex, password_hex, nonce_hex) {
+                    if let Err(e) = writeln!(file, "{}:{}", payload_hex, nonce_hex) {
                         eprintln!("Failed to write to file: {}", e);
                     }
-
-                    self.new_entry.title.clear();
-                    self.new_entry.password.clear();
                 }
                 Err(e) => {
                     eprintln!("Failed to open file: {}", e);
@@ -157,12 +161,11 @@ impl MyApp {
 
                         let parts: Vec<&str> = line.split(':').collect();
 
-                        if parts.len() == 3 {
-                            let title_hex = parts[0];
-                            let password_hex = parts[1];
-                            let nonce_hex = parts[2];
+                        if parts.len() == 2 {
+                            let payload_hex = parts[0];
+                            let nonce_hex = parts[1];
 
-                            let title_bytes = hex::decode(title_hex).unwrap();
+                            let payload_bytes = hex::decode(payload_hex).unwrap();
                             let nonce_bytes = hex::decode(nonce_hex).unwrap();
 
                             let nonce_array: &[u8; 12] = nonce_bytes
@@ -173,16 +176,20 @@ impl MyApp {
 
                             // only decrypt title, decrypt password if user really wants to see it
                             let plaintext_title = cipher
-                                .decrypt(nonce, title_bytes.as_ref())
+                                .decrypt(nonce, payload_bytes.as_ref())
                                 .expect("Decryption failed");
 
-                            let title_string =
-                                String::from_utf8_lossy(&plaintext_title).into_owned();
+                            let loaded_entry: Entry = serde_json::from_slice(&plaintext_title)
+                                .expect("Failed to deserialize entry");
 
-                            println!("{}", title_string);
-                            let loaded_entry =
-                                database::Entry::new(title_string, password_hex.to_string());
-                            self.loaded_entries.push(loaded_entry);
+                            let secure_entry = EncryptedEntry {
+                                title: loaded_entry.title,
+                                encrypted_json: payload_bytes,
+                                nonce: *nonce_array,
+                            };
+
+                            println!("{}", secure_entry.title);
+                            self.loaded_entries.push(secure_entry);
                         }
                     }
                 }

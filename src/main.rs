@@ -37,6 +37,7 @@ enum ViewState {
     UnlockDatabase,
     DatabaseStartMenu,
     NewEntry,
+    FullEntry,
 }
 
 #[derive(Default)]
@@ -56,7 +57,9 @@ struct MyApp {
     pending_open: bool,
     unlocked_db: bool,
     new_entry: database::Entry,
-    loaded_entries: Vec<database::Entry>,
+    loaded_entries: Vec<database::EncryptedEntry>,
+    full_entry_index: usize,
+    show_password: bool,
 }
 
 impl MyApp {
@@ -78,6 +81,8 @@ impl MyApp {
             unlocked_db: false,
             new_entry: Entry::new(String::new(), String::new()),
             loaded_entries: Vec::new(),
+            full_entry_index: 0,
+            show_password: false,
         }
     }
 }
@@ -94,6 +99,8 @@ impl eframe::App for MyApp {
                 self.unlocked_db(ui);
             } else if self.viewstate == ViewState::NewEntry {
                 self.new_entry(ui);
+            } else if self.viewstate == ViewState::FullEntry {
+                self.load_edit_entry(self.full_entry_index);
             }
 
             self.show_new_db_viewport_ui(ui); //automatically handles itself based on state

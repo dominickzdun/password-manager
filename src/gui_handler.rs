@@ -47,9 +47,17 @@ impl MyApp {
                     egui::CentralPanel::default().show_inside(ui, |ui| {
                         if (self.new_db_page == 1) {
                             ui.label("Password");
-                            ui.text_edit_singleline(&mut self.new_db_password);
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.new_db_password)
+                                    .password(true),
+                            );
+
                             ui.label("Confirm Password");
-                            ui.text_edit_singleline(&mut self.new_db_confirm_password);
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.new_db_confirm_password)
+                                    .password(true),
+                            );
+
                             ui.horizontal(|ui| {
                                 if ui.button("Go Back").clicked() {
                                     self.new_db_page -= 1;
@@ -120,7 +128,7 @@ impl MyApp {
     pub fn unlock_db(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label("Your password: ");
-            ui.text_edit_singleline(&mut self.password);
+            ui.add(egui::TextEdit::singleline(&mut self.password).password(true));
         });
         if ui.button("Enter").clicked() {
             println!("{}", self.password);
@@ -142,18 +150,22 @@ impl MyApp {
 
     pub fn unlocked_db(&mut self, ui: &mut egui::Ui) {
         for entry in 0..self.loaded_entries.len() {
-            self.load_entry(ui, &self.loaded_entries[entry].title);
+            self.load_entry_listing(ui, entry);
         }
     }
     pub fn new_entry(&mut self, ui: &mut egui::Ui) {
         ui.label("Title");
         ui.text_edit_singleline(&mut self.new_entry.title);
         ui.label("Password");
-        ui.text_edit_singleline(&mut self.new_entry.password);
-
+        ui.add(egui::TextEdit::singleline(&mut self.new_entry.password).password(true));
         if ui.button("Create").clicked() {
             //cipher text, write to file to save cipher, nonce,
             self.create_new_entry();
+            self.loaded_entries.clear();
+            self.decrypt_all_entries();
+
+            self.new_entry.title.clear();
+            self.new_entry.password.clear();
             self.viewstate = ViewState::DatabaseStartMenu;
         }
         if ui.button("Cancel").clicked() {
@@ -161,11 +173,12 @@ impl MyApp {
         }
     }
 
-    pub fn load_entry(&self, ui: &mut egui::Ui, title: &String) {
+    pub fn load_edit_entry(&self, index: usize) {}
+    pub fn load_entry_listing(&mut self, ui: &mut egui::Ui, index: usize) {
         let response = ui
             .scope_builder(
                 UiBuilder::new()
-                    .id_salt("interactive_container")
+                    .id_salt(format!("entry_{}", index))
                     .sense(Sense::click()),
                 |ui| {
                     let response = ui.response();
@@ -183,7 +196,7 @@ impl MyApp {
                                 ui.add_space(32.0);
 
                                 Label::new(
-                                    RichText::new(format!("{}", title))
+                                    RichText::new(format!("{}", self.loaded_entries[index].title))
                                         .color(text_color)
                                         .size(16.0),
                                 )
@@ -207,7 +220,8 @@ impl MyApp {
             .response;
 
         if response.clicked() {
-            println!("big");
+            self.full_entry_index = index;
+            self.viewstate = ViewState::FullEntry;
         }
     }
 }
