@@ -2,14 +2,14 @@ use crate::ChaCha20Poly1305;
 use crate::MyApp;
 use crate::PathBuf;
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2, Params,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
-use chacha20poly1305::{aead::AeadMut, AeadCore, Key, KeyInit};
+use chacha20poly1305::{AeadCore, Key, KeyInit, Nonce, aead::AeadMut};
 
 use crate::database;
 use std::fs::{File, OpenOptions};
-use std::io::{prelude::*, BufReader, Write};
+use std::io::{BufReader, Write, prelude::*};
 
 use serde::{Deserialize, Serialize};
 
@@ -24,6 +24,7 @@ pub struct Entry {
     pub title: String,
     pub password: String,
 }
+
 impl Entry {
     pub fn new(title: String, password: String) -> Self {
         Entry { title, password }
@@ -106,8 +107,23 @@ pub fn unlock_db(
 
     Ok(Key::from(key_bytes))
 }
+
 impl MyApp {
     // MAKE TEMP FILE FIRST, CONFIRM ITS CORRECT, THEN OVERWRITE
+
+    pub fn encrypted_payload_to_entry(&self, index: usize) -> Entry {
+        let mut cipher = ChaCha20Poly1305::new(&self.key);
+        let plaintext = cipher
+            .decrypt(
+                Nonce::from_slice(&self.loaded_entries[index].nonce),
+                self.loaded_entries[index].encrypted_json.as_ref(),
+            )
+            .expect("Decryption failed");
+
+        let entry: Entry = serde_json::from_slice(&plaintext).expect("Failed to deserialize entry");
+
+        return entry;
+    }
     pub fn create_new_entry(&mut self) {
         if let Some(ref path) = self.file_path {
             match OpenOptions::new().write(true).append(true).open(path) {
@@ -199,6 +215,45 @@ impl MyApp {
             }
         } else {
             eprintln!("No file path selected!");
+        }
+    }
+    pub fn update_entry(
+        &mut self,
+        index: usize,
+        updated_entry: Entry,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(ref path) = self.file_path {
+            // 1. Read all lines from the file
+            let file = File::open(path)?;
+            let reader = BufReader::new(file);
+            let mut lines: Vec<String> = reader.lines().collect::<Result<_, _>>()?;
+
+            if index + 1 >= lines.len() {
+                return Err("Entry index out of bounds".into());
+            }
+
+            let payload_bytes = serde_json::to_vec(&updated_entry)?;
+            let mut cipher = ChaCha20Poly1305::new(&self.key);
+            let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+            let cipher_payload = cipher.encrypt(&nonce, payload_bytes.as_ref());
+
+            let payload_hex = hex::encode(cipher_payload.unwrap());
+            let nonce_hex = hex::encode(nonce);
+
+            lines[index + 1] = format!("{}:{}", payload_hex, nonce_hex);
+
+            let temp_path = format!("{}.tmp", path.display());
+            {
+                let mut temp_file = File::create(&temp_path)?;
+                for line in &lines {
+                    writeln!(temp_file, "{}", line)?;
+                }
+            }
+            std::fs::rename(&temp_path, path)?;
+
+            Ok(())
+        } else {
+            Err("No file path selected".into())
         }
     }
 }

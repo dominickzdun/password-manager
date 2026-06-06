@@ -1,11 +1,11 @@
-use crate::database;
 use crate::MyApp;
 use crate::ViewState;
 use crate::ViewState::NewEntry;
+use crate::database;
 use eframe::egui;
 use egui::{Frame, Label, RichText, Sense, UiBuilder, Widget as _};
-
 use rfd::FileDialog;
+use zeroize::Zeroize;
 
 impl MyApp {
     pub fn header(&mut self, ui: &mut egui::Ui) {
@@ -21,6 +21,11 @@ impl MyApp {
                     .set_directory("/")
                     .pick_file();
                 self.pending_open = true;
+                ui.close();
+            }
+
+            if ui.button("Lock Database").clicked() && self.unlocked_db {
+                self.reset_app_state();
                 ui.close();
             }
 
@@ -164,8 +169,8 @@ impl MyApp {
             self.loaded_entries.clear();
             self.decrypt_all_entries();
 
-            self.new_entry.title.clear();
-            self.new_entry.password.clear();
+            self.new_entry.title.zeroize();
+            self.new_entry.password.zeroize();
             self.viewstate = ViewState::DatabaseStartMenu;
         }
         if ui.button("Cancel").clicked() {
@@ -173,7 +178,31 @@ impl MyApp {
         }
     }
 
-    pub fn load_edit_entry(&self, index: usize) {}
+    pub fn load_edit_entry(&mut self, ui: &mut egui::Ui, index: usize) {
+        ui.label("Title");
+        ui.text_edit_singleline(&mut self.new_entry.title);
+        ui.label("Password");
+        ui.add(
+            egui::TextEdit::singleline(&mut self.new_entry.password).password(self.hide_password),
+        );
+        if ui.button("View Password").clicked() {
+            self.hide_password = !self.hide_password;
+        }
+        if ui.button("Change").clicked() {
+            self.update_entry(index, self.new_entry.clone());
+            self.entry_loaded_for_edit = false;
+            self.viewstate = ViewState::DatabaseStartMenu;
+            self.loaded_entries.clear();
+            self.decrypt_all_entries();
+        }
+        if ui.button("Cancel").clicked() {
+            self.new_entry.title.zeroize();
+            self.new_entry.password.zeroize();
+            self.hide_password = true;
+            self.entry_loaded_for_edit = false;
+            self.viewstate = ViewState::DatabaseStartMenu;
+        }
+    }
     pub fn load_entry_listing(&mut self, ui: &mut egui::Ui, index: usize) {
         let response = ui
             .scope_builder(

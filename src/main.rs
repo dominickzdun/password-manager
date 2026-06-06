@@ -3,8 +3,8 @@
 
 use chacha20poly1305::Key;
 use chacha20poly1305::{
-    aead::{Aead, AeadCore, KeyInit},
     ChaCha20Poly1305, Nonce,
+    aead::{Aead, AeadCore, KeyInit},
 };
 use eframe::egui;
 use egui_file_dialog::FileDialog;
@@ -59,10 +59,15 @@ struct MyApp {
     new_entry: database::Entry,
     loaded_entries: Vec<database::EncryptedEntry>,
     full_entry_index: usize,
-    show_password: bool,
+    hide_password: bool,
+    entry_loaded_for_edit: bool,
 }
 
 impl MyApp {
+    pub fn reset_app_state(&mut self) {
+        *self = Self::default();
+    }
+
     pub fn new(_cc: &eframe::CreationContext) -> Self {
         Self {
             viewstate: ViewState::StartMenu,
@@ -82,7 +87,8 @@ impl MyApp {
             new_entry: Entry::new(String::new(), String::new()),
             loaded_entries: Vec::new(),
             full_entry_index: 0,
-            show_password: false,
+            hide_password: true,
+            entry_loaded_for_edit: false,
         }
     }
 }
@@ -100,7 +106,11 @@ impl eframe::App for MyApp {
             } else if self.viewstate == ViewState::NewEntry {
                 self.new_entry(ui);
             } else if self.viewstate == ViewState::FullEntry {
-                self.load_edit_entry(self.full_entry_index);
+                if !self.entry_loaded_for_edit {
+                    self.new_entry = self.encrypted_payload_to_entry(self.full_entry_index);
+                    self.entry_loaded_for_edit = true;
+                }
+                self.load_edit_entry(ui, self.full_entry_index);
             }
 
             self.show_new_db_viewport_ui(ui); //automatically handles itself based on state
