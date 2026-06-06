@@ -6,8 +6,6 @@ use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 use chacha20poly1305::{AeadCore, Key, KeyInit, Nonce, aead::AeadMut};
-
-use crate::database;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Write, prelude::*};
 
@@ -93,7 +91,7 @@ pub fn unlock_db(
     let argon2 = Argon2::new(argon2::Algorithm::Argon2d, argon2::Version::V0x13, params);
 
     match argon2.verify_password(password.as_bytes(), &parsed_hash) {
-        Ok(_) => println!("Password verified successfully!"),
+        Ok(_) => {}
         Err(_) => return Err("Invalid password".into()),
     }
 
@@ -109,8 +107,6 @@ pub fn unlock_db(
 }
 
 impl MyApp {
-    // MAKE TEMP FILE FIRST, CONFIRM ITS CORRECT, THEN OVERWRITE
-
     pub fn encrypted_payload_to_entry(&self, index: usize) -> Entry {
         let mut cipher = ChaCha20Poly1305::new(&self.key);
         let plaintext = cipher
@@ -124,43 +120,36 @@ impl MyApp {
 
         return entry;
     }
-    pub fn create_new_entry(&mut self) {
+    pub fn create_new_entry(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(ref path) = self.file_path {
-            match OpenOptions::new().write(true).append(true).open(path) {
-                Ok(mut file) => {
-                    let payload_bytes =
-                        serde_json::to_vec(&self.new_entry).expect("Failed to serialize entry");
+            let file = File::open(path)?;
+            let reader = BufReader::new(file);
+            let mut lines: Vec<String> = reader.lines().collect::<Result<_, _>>()?;
 
-                    let mut cipher = ChaCha20Poly1305::new(&self.key);
-                    let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng); // 96-bits; create new for every cipher text
-                    let cipher_payload = cipher
-                        .encrypt(&nonce, payload_bytes.as_ref())
-                        .expect("Encryption failed");
+            let payload_bytes = serde_json::to_vec(&self.new_entry)?;
+            let mut cipher = ChaCha20Poly1305::new(&self.key);
+            let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+            let cipher_payload = cipher.encrypt(&nonce, payload_bytes.as_ref());
 
-                    let payload_hex = hex::encode(cipher_payload);
-                    let nonce_hex = hex::encode(nonce);
+            let payload_hex = hex::encode(cipher_payload.unwrap());
+            let nonce_hex = hex::encode(nonce);
 
-                    if let Err(e) = writeln!(file, "{}:{}", payload_hex, nonce_hex) {
-                        eprintln!("Failed to write to file: {}", e);
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Failed to open file: {}", e);
+            lines.push(format!("{}:{}", payload_hex, nonce_hex));
+
+            let temp_path = format!("{}.tmp", path.display());
+            {
+                let mut temp_file = File::create(&temp_path)?;
+                for line in &lines {
+                    writeln!(temp_file, "{}", line)?;
                 }
             }
+
+            std::fs::rename(&temp_path, path)?;
+
+            Ok(())
         } else {
-            eprintln!("No file path selected!");
+            Err("No file path selected!".into())
         }
-
-        // let plaintext = cipher
-        //     .decrypt(&nonce, ciphertext.as_ref())
-        //     .expect("Decryption failed");
-
-        // println!(
-        //     "Decrypted plaintext: {}",
-        //     String::from_utf8_lossy(&plaintext)
-        // );
-        // assert_eq!(&plaintext, b"plaintext message");
     }
     pub fn decrypt_all_entries(&mut self) {
         if let Some(ref path) = self.file_path {
@@ -204,7 +193,6 @@ impl MyApp {
                                 nonce: *nonce_array,
                             };
 
-                            println!("{}", secure_entry.title);
                             self.loaded_entries.push(secure_entry);
                         }
                     }

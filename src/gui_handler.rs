@@ -9,35 +9,37 @@ use zeroize::Zeroize;
 
 impl MyApp {
     pub fn header(&mut self, ui: &mut egui::Ui) {
-        ui.menu_button("Database", |ui| {
-            if ui.button("Create New Database").clicked() {
-                self.show_new_db_viewport = true;
-                ui.close();
-            }
+        ui.horizontal(|ui| {
+            ui.menu_button("Database", |ui| {
+                if ui.button("Create New Database").clicked() {
+                    self.show_new_db_viewport = true;
+                    ui.close();
+                }
 
-            if ui.button("Open Database").clicked() {
-                self.file_path = FileDialog::new()
-                    .add_filter("database", &["enc"])
-                    .set_directory("/")
-                    .pick_file();
-                self.pending_open = true;
-                ui.close();
-            }
+                if ui.button("Open Database").clicked() {
+                    self.file_path = FileDialog::new()
+                        .add_filter("database", &["enc"])
+                        .set_directory("/")
+                        .pick_file();
+                    self.pending_open = true;
+                    ui.close();
+                }
 
-            if ui.button("Lock Database").clicked() && self.unlocked_db {
-                self.reset_app_state();
-                ui.close();
-            }
+                if ui.button("Lock Database").clicked() && self.unlocked_db {
+                    self.reset_app_state();
+                    ui.close();
+                }
 
-            if ui.button("Quit").clicked() {
-                ui.close();
-            }
-        });
-        ui.menu_button("Entries", |ui| {
-            if ui.button("New Entry").clicked() && self.unlocked_db {
-                self.viewstate = NewEntry;
-                ui.close();
-            }
+                if ui.button("Quit").clicked() {
+                    ui.close();
+                }
+            });
+            ui.menu_button("Entries", |ui| {
+                if ui.button("New Entry").clicked() && self.unlocked_db {
+                    self.viewstate = NewEntry;
+                    ui.close();
+                }
+            });
         });
     }
 
@@ -50,7 +52,7 @@ impl MyApp {
                     .with_inner_size([720.0, 320.0]),
                 |ui, class| {
                     egui::CentralPanel::default().show_inside(ui, |ui| {
-                        if (self.new_db_page == 1) {
+                        if self.new_db_page == 1 {
                             ui.label("Password");
                             ui.add(
                                 egui::TextEdit::singleline(&mut self.new_db_password)
@@ -67,8 +69,8 @@ impl MyApp {
                                 if ui.button("Go Back").clicked() {
                                     self.new_db_page -= 1;
                                 }
-                                if (ui.button("Done").clicked()
-                                    && self.new_db_password == self.new_db_confirm_password)
+                                if ui.button("Done").clicked()
+                                    && self.new_db_password == self.new_db_confirm_password
                                 {
                                     self.file_path = FileDialog::new()
                                         .set_file_name(&format!("{}.enc", self.new_db_name))
@@ -136,7 +138,6 @@ impl MyApp {
             ui.add(egui::TextEdit::singleline(&mut self.password).password(true));
         });
         if ui.button("Enter").clicked() {
-            println!("{}", self.password);
             // take password, generate key, compare key to hash, if true store key,
             // else give error message
             match database::unlock_db(&self.password, &self.file_path) {
@@ -145,7 +146,6 @@ impl MyApp {
                     self.db_selected = false;
                     self.unlocked_db = true;
                     self.viewstate = ViewState::DatabaseStartMenu;
-                    println!("unlocked");
                     self.decrypt_all_entries();
                 }
                 Err(e) => println!("{}", e),
@@ -165,13 +165,19 @@ impl MyApp {
         ui.add(egui::TextEdit::singleline(&mut self.new_entry.password).password(true));
         if ui.button("Create").clicked() {
             //cipher text, write to file to save cipher, nonce,
-            self.create_new_entry();
-            self.loaded_entries.clear();
-            self.decrypt_all_entries();
+            match self.create_new_entry() {
+                Ok(_) => {
+                    self.loaded_entries.clear();
+                    self.decrypt_all_entries();
 
-            self.new_entry.title.zeroize();
-            self.new_entry.password.zeroize();
-            self.viewstate = ViewState::DatabaseStartMenu;
+                    self.new_entry.title.zeroize();
+                    self.new_entry.password.zeroize();
+                    self.viewstate = ViewState::DatabaseStartMenu;
+                }
+                Err(e) => {
+                    eprintln!("Failed to create new entry: {}", e);
+                }
+            }
         }
         if ui.button("Cancel").clicked() {
             self.viewstate = ViewState::DatabaseStartMenu;
@@ -207,7 +213,7 @@ impl MyApp {
         let response = ui
             .scope_builder(
                 UiBuilder::new()
-                    .id_salt(format!("entry_{}", index))
+                    .id_salt(index)
                     .sense(Sense::click()),
                 |ui| {
                     let response = ui.response();

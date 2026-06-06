@@ -20,6 +20,7 @@ fn main() -> eframe::Result {
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([720.0, 480.0]),
+        vsync: true,
         ..Default::default()
     };
 
@@ -115,9 +116,12 @@ impl eframe::App for MyApp {
 
             self.show_new_db_viewport_ui(ui); //automatically handles itself based on state
 
-            if let Some(path) = self.file_dialog.update(ui).picked() {
-                self.file_path = Some(path.to_path_buf());
+            if self.pending_create || self.pending_open {
+                if let Some(path) = self.file_dialog.update(ui).picked() {
+                    self.file_path = Some(path.to_path_buf());
+                }
             }
+
             if self.pending_create {
                 if let Some(path) = &self.file_path {
                     self.key = database::create_db(&self.new_db_name, &self.new_db_password, path);
