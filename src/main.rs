@@ -8,6 +8,7 @@ use chacha20poly1305::{
 };
 use eframe::egui;
 use egui_file_dialog::FileDialog;
+use std::env;
 use std::path::PathBuf;
 
 use crate::database::Entry;
@@ -18,9 +19,13 @@ mod gui_handler;
 fn main() -> eframe::Result {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
 
+    // program should be single threaded? so its probably okay
+    unsafe {
+        env::set_var("WGPU_BACKEND", "opengl"); // need to set this for windows so vulkan doesnt hog cpu
+    }
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([720.0, 480.0]),
-        vsync: true,
+        vsync: false,
         ..Default::default()
     };
 
@@ -61,7 +66,6 @@ struct MyApp {
     loaded_entries: Vec<database::EncryptedEntry>,
     full_entry_index: usize,
     hide_password: bool,
-    entry_loaded_for_edit: bool,
 }
 
 impl MyApp {
@@ -89,7 +93,6 @@ impl MyApp {
             loaded_entries: Vec::new(),
             full_entry_index: 0,
             hide_password: true,
-            entry_loaded_for_edit: false,
         }
     }
 }
@@ -107,10 +110,8 @@ impl eframe::App for MyApp {
             } else if self.viewstate == ViewState::NewEntry {
                 self.new_entry(ui);
             } else if self.viewstate == ViewState::FullEntry {
-                if !self.entry_loaded_for_edit {
-                    self.new_entry = self.encrypted_payload_to_entry(self.full_entry_index);
-                    self.entry_loaded_for_edit = true;
-                }
+                self.new_entry = self.encrypted_payload_to_entry(self.full_entry_index);
+
                 self.load_edit_entry(ui, self.full_entry_index);
             }
 

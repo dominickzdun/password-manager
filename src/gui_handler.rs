@@ -196,7 +196,9 @@ impl MyApp {
         }
         if ui.button("Change").clicked() {
             self.update_entry(index, self.new_entry.clone());
-            self.entry_loaded_for_edit = false;
+            self.new_entry.title.zeroize();
+            self.new_entry.password.zeroize();
+            self.hide_password = true;
             self.viewstate = ViewState::DatabaseStartMenu;
             self.loaded_entries.clear();
             self.decrypt_all_entries();
@@ -205,16 +207,13 @@ impl MyApp {
             self.new_entry.title.zeroize();
             self.new_entry.password.zeroize();
             self.hide_password = true;
-            self.entry_loaded_for_edit = false;
             self.viewstate = ViewState::DatabaseStartMenu;
         }
     }
     pub fn load_entry_listing(&mut self, ui: &mut egui::Ui, index: usize) {
         let response = ui
             .scope_builder(
-                UiBuilder::new()
-                    .id_salt(index)
-                    .sense(Sense::click()),
+                UiBuilder::new().id_salt(index).sense(Sense::click()),
                 |ui| {
                     let response = ui.response();
                     let visuals = ui.style().interact(&response);
